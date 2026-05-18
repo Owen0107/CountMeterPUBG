@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Game Distance Tracker</title>
+    <meta name="description" content="Đo khoảng cách real-time trên điện thoại">
+    <meta name="theme-color" content="#06060c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Game Tracker">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --gold: #f0c040;
+            --gold-dim: #b8922e;
+            --gold-glow: rgba(240, 192, 64, 0.4);
+            --bg-primary: #06060c;
+            --bg-secondary: #0d0d18;
+            --bg-card: rgba(15, 15, 30, 0.85);
+            --text-primary: #e8e8f0;
+            --text-secondary: #6b6b80;
+            --danger: #ff4466;
+            --danger-glow: rgba(255, 68, 102, 0.3);
+            --success: #44ffaa;
+            --success-glow: rgba(68, 255, 170, 0.3);
+            --border: rgba(240, 192, 64, 0.12);
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; overflow: hidden; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
+            position: relative;
+        }
+
+        /* ═══ Animated Background ═══ */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 20%, rgba(240, 192, 64, 0.04) 0%, transparent 70%),
+                radial-gradient(ellipse 500px 500px at 80% 80%, rgba(100, 80, 200, 0.03) 0%, transparent 70%);
+            z-index: 0;
+            animation: bgPulse 8s ease-in-out infinite alternate;
+        }
+        @keyframes bgPulse { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(240, 192, 64, 0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(240, 192, 64, 0.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ═══ Login Screen ═══ */
+        #login-screen {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            width: 100%;
+            max-width: 380px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-logo {
+            width: 72px; height: 72px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px var(--gold-glow);
+            position: relative;
+        }
+        .login-logo::after {
+            content: '';
+            position: absolute; inset: -3px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, var(--gold), transparent, var(--gold));
+            opacity: 0.3; z-index: -1;
+            animation: logoGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes logoGlow { 0% { opacity: 0.2; } 100% { opacity: 0.5; transform: scale(1.05); } }
+
+        .login-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 22px; font-weight: 700;
+            color: var(--gold);
+            letter-spacing: 3px;
+            margin-bottom: 6px;
+            text-shadow: 0 0 20px var(--gold-glow);
+        }
+        .login-subtitle {
+            font-size: 13px; color: var(--text-secondary);
+            margin-bottom: 36px; letter-spacing: 1px;
+        }
+
+        #connect-form {
+            display: flex; flex-direction: column;
+            gap: 14px; width: 100%;
+        }
+        .input-label {
+            font-size: 11px; font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 2px; margin-bottom: 8px;
+            display: block;
+        }
+        #room-input {
+            width: 100%;
+            padding: 16px 20px; border-radius: 14px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            color: var(--gold);
+            font-family: 'Orbitron', monospace;
+            font-size: 24px; font-weight: 700;
+            text-align: center;
+            letter-spacing: 10px;
+            text-transform: uppercase;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        #room-input::placeholder {
+            color: rgba(240, 192, 64, 0.2);
+            letter-spacing: 6px; font-size: 16px;
+        }
+        #room-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px var(--gold-glow), 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        #connect-btn {
+            padding: 16px; border-radius: 14px;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
+            color: #000; font-family: 'Inter', sans-serif;
+            font-weight: 700; font-size: 15px;
+            letter-spacing: 2px; text-transform: uppercase;
+            border: none; cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative; overflow: hidden;
+        }
+        #connect-btn::before {
+            content: ''; position: absolute; top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        #connect-btn:active::before { left: 100%; }
+        #connect-btn:active { transform: scale(0.97); }
+        #connect-btn:disabled { opacity: 0.6; }
+
+        #login-error {
+            color: var(--danger); font-size: 13px;
+            text-align: center; min-height: 20px; margin-top: 4px;
+        }
+
+        /* ═══ Install Banner ═══ */
+        .install-banner {
+            display: none;
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(240, 192, 64, 0.06);
+            border: 1px solid rgba(240, 192, 64, 0.15);
+            text-align: center;
+        }
+        .install-banner p {
+            font-size: 12px; color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        .install-btn {
+            padding: 10px 20px; border-radius: 10px;
+            background: rgba(240, 192, 64, 0.15);
+            border: 1px solid var(--gold);
+            color: var(--gold); font-weight: 600;
+            font-size: 13px; cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .install-btn:active { background: rgba(240, 192, 64, 0.25); }
+
+        /* ═══ Main Display ═══ */
+        #main-display {
+            display: none; position: relative; z-index: 10;
+            width: 100%; height: 100vh;
+            flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 24px; text-align: center;
+        }
+
+        .status-bar {
+            position: absolute; top: 0; left: 0; right: 0;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px;
+            padding-top: calc(12px + var(--safe-top));
+            background: rgba(6, 6, 12, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success-glow);
+            animation: statusPulse 2s ease-in-out infinite;
+        }
+        .status-dot.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger-glow);
+            animation: none;
+        }
+        @keyframes statusPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .status-text {
+            font-size: 11px; font-weight: 500;
+            color: var(--text-secondary);
+            letter-spacing: 1px; text-transform: uppercase;
+        }
+        .room-badge {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px; font-weight: 600;
+            color: var(--gold);
+            background: rgba(240, 192, 64, 0.08);
+            padding: 4px 10px; border-radius: 6px;
+            border: 1px solid rgba(240, 192, 64, 0.15);
+            letter-spacing: 2px;
+        }
+
+        /* Distance ring */
+        .distance-container { position: relative; margin-bottom: 8px; }
+        .distance-ring {
+            width: 280px; height: 280px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            position: relative;
+            background: radial-gradient(circle, rgba(240, 192, 64, 0.03) 0%, transparent 70%);
+        }
+        .distance-ring::before {
+            content: ''; position: absolute; inset: -6px;
+            border-radius: 50%;
+            border: 1px solid rgba(240, 192, 64, 0.06);
+        }
+        .distance-ring::after {
+            content: ''; position: absolute; inset: -12px;
+            border-radius: 50%;
+            border: 1px solid rgba(240, 192, 64, 0.03);
+        }
+        .rotating-arc {
+            position: absolute; inset: -3px; border-radius: 50%;
+            border: 2px solid transparent;
+            border-top-color: var(--gold);
+            opacity: 0.4;
+            animation: rotateArc 6s linear infinite;
+        }
+        @keyframes rotateArc { to { transform: rotate(360deg); } }
+
+        #distance {
+            font-family: 'Orbitron', monospace;
+            font-size: 80px; font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 40px var(--gold-glow), 0 0 80px rgba(240, 192, 64, 0.15);
+            letter-spacing: -2px; line-height: 1;
+            transition: all 0.2s ease;
+        }
+        #unit {
+            font-family: 'Orbitron', monospace;
+            font-size: 18px; font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 6px; text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        @keyframes distanceFlash {
+            0% { color: #ffffff; text-shadow: 0 0 60px rgba(255,255,255,0.6); }
+            100% { color: var(--gold); text-shadow: 0 0 40px var(--gold-glow); }
+        }
+        #distance.updated { animation: distanceFlash 0.4s ease-out; }
+
+        @keyframes ringPulse {
+            0% { border-color: var(--gold); box-shadow: 0 0 30px var(--gold-glow); }
+            100% { border-color: var(--border); box-shadow: none; }
+        }
+        .distance-ring.pulse { animation: ringPulse 0.6s ease-out; }
+
+        /* Crosshairs */
+        .crosshair { position: absolute; pointer-events: none; }
+        .crosshair-h { width: 24px; height: 1px; background: rgba(240, 192, 64, 0.15); }
+        .crosshair-v { width: 1px; height: 24px; background: rgba(240, 192, 64, 0.15); }
+        .crosshair-top { top: 0; left: 50%; transform: translateX(-50%); }
+        .crosshair-bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+        .crosshair-left { left: 0; top: 50%; transform: translateY(-50%); }
+        .crosshair-right { right: 0; top: 50%; transform: translateY(-50%); }
+
+        #error {
+            color: var(--danger); font-size: 14px; font-weight: 500;
+            margin-top: 20px; text-align: center;
+            min-height: 22px; max-width: 300px; line-height: 1.5;
+        }
+
+        .info-section {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            padding: 20px; padding-bottom: calc(20px + var(--safe-bottom));
+            display: flex; flex-direction: column;
+            align-items: center; gap: 12px;
+        }
+        .hint {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 16px;
+            background: rgba(240, 192, 64, 0.05);
+            border: 1px solid rgba(240, 192, 64, 0.1);
+            border-radius: 10px;
+        }
+        .hint-key {
+            font-family: 'Orbitron', monospace;
+            font-size: 10px; font-weight: 700;
+            color: var(--gold);
+            background: rgba(240, 192, 64, 0.12);
+            padding: 3px 8px; border-radius: 5px;
+            letter-spacing: 1px;
+        }
+        .hint-text { font-size: 11px; color: var(--text-secondary); }
+
+        #status {
+            font-size: 12px; color: var(--text-secondary);
+            letter-spacing: 0.5px;
+        }
+
+        .history-list {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            justify-content: center; max-width: 320px;
+        }
+        .history-item {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px; font-weight: 600;
+            color: var(--gold-dim);
+            background: rgba(240, 192, 64, 0.06);
+            padding: 4px 10px; border-radius: 6px;
+            border: 1px solid rgba(240, 192, 64, 0.1);
+            opacity: 0;
+            animation: historyFadeIn 0.3s ease-out forwards;
+        }
+        @keyframes historyFadeIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .wakelock-indicator {
+            font-size: 10px; color: var(--text-secondary); opacity: 0.5;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            50% { transform: translateX(8px); }
+            75% { transform: translateX(-4px); }
+        }
+
+        /* Responsive */
+        @media (max-height: 600px) {
+            .distance-ring { width: 200px; height: 200px; }
+            #distance { font-size: 56px; }
+            #unit { font-size: 14px; }
+        }
+        @media (min-height: 800px) {
+            .distance-ring { width: 320px; height: 320px; }
+            #distance { font-size: 96px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══ Login Screen ═══ -->
+<div id="login-screen">
+    <div class="login-logo">🎯</div>
+    <div class="login-title">GAME TRACKER</div>
+    <div class="login-subtitle">Distance Measurement System</div>
+
+    <div id="connect-form">
+        <div>
+            <label class="input-label" for="room-input">Room Code</label>
+            <input id="room-input" placeholder="••••••" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        </div>
+        <button id="connect-btn" onclick="connectToServer()">KẾT NỐI</button>
+        <div id="login-error"></div>
+    </div>
+
+    <!-- PWA Install Banner -->
+    <div class="install-banner" id="install-banner">
+        <p>📲 Cài đặt ứng dụng lên điện thoại để truy cập nhanh hơn</p>
+        <button class="install-btn" id="install-btn" onclick="installPWA()">CÀI ĐẶT APP</button>
+    </div>
+</div>
+
+<!-- ═══ Main Display ═══ -->
+<div id="main-display">
+    <div class="status-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-dot" id="status-dot"></div>
+            <span class="status-text" id="connection-status">Đã kết nối</span>
+        </div>
+        <div class="room-badge" id="room-badge">------</div>
+    </div>
+
+    <div class="distance-container">
+        <div class="distance-ring" id="distance-ring">
+            <div class="rotating-arc"></div>
+            <div class="crosshair crosshair-top crosshair-v"></div>
+            <div class="crosshair crosshair-bottom crosshair-v"></div>
+            <div class="crosshair crosshair-left crosshair-h"></div>
+            <div class="crosshair crosshair-right crosshair-h"></div>
+            <div id="distance">---</div>
+            <div id="unit">METERS</div>
+        </div>
+    </div>
+
+    <div id="error"></div>
+
+    <div class="info-section">
+        <div class="hint">
+            <span class="hint-key">ALT+S</span>
+            <span class="hint-text">trên PC để đo khoảng cách</span>
+        </div>
+        <div id="status">Chờ dữ liệu từ PC...</div>
+        <div class="history-list" id="history-list"></div>
+        <div class="wakelock-indicator" id="wakelock-status"></div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    let socket;
+    let distanceHistory = [];
+    const MAX_HISTORY = 6;
+
+    // ─── PWA Install ───
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        document.getElementById('install-banner').style.display = 'block';
+    });
+
+    function installPWA() {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((result) => {
+            if (result.outcome === 'accepted') {
+                document.getElementById('install-banner').style.display = 'none';
+            }
+            deferredPrompt = null;
+        });
+    }
+
+    // ─── Service Worker ───
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(() => console.log('SW registered'))
+            .catch((err) => console.log('SW failed:', err));
+    }
+
+    // ─── Wake Lock ───
+    let wakeLock = null;
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                document.getElementById('wakelock-status').textContent = '🔒 Màn hình luôn sáng';
+            }
+        } catch (err) { /* not supported */ }
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && socket && socket.connected) requestWakeLock();
+    });
+
+    // ─── Auto-connect from QR ───
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoRoom = urlParams.get('room');
+    if (autoRoom) {
+        document.getElementById('room-input').value = autoRoom;
+        setTimeout(() => connectToServer(autoRoom), 300);
+    }
+
+    document.getElementById('room-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') connectToServer();
+    });
+
+    // ─── Connect ───
+    function connectToServer(roomCode) {
+        const code = (roomCode || document.getElementById('room-input').value).toUpperCase().trim();
+        const errorEl = document.getElementById('login-error');
+
+        if (code.length !== 6) {
+            errorEl.textContent = 'Room Code phải có 6 ký tự';
+            const input = document.getElementById('room-input');
+            input.style.animation = 'shake 0.4s ease';
+            setTimeout(() => input.style.animation = '', 400);
+            return;
+        }
+
+        errorEl.textContent = '';
+        const btn = document.getElementById('connect-btn');
+        btn.textContent = 'ĐANG KẾT NỐI...';
+        btn.disabled = true;
+
+        socket = io(window.location.origin, {
+            query: { room: code, type: 'mobile' },
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 2000,
+        });
+
+        socket.on('connect', () => {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-display').style.display = 'flex';
+            document.getElementById('room-badge').textContent = code;
+            updateConnectionStatus(true);
+            requestWakeLock();
+        });
+
+        socket.on('auth_error', (data) => {
+            errorEl.textContent = data.message || 'Mã phòng không đúng!';
+            btn.textContent = 'KẾT NỐI'; btn.disabled = false;
+            socket.disconnect();
+        });
+
+        socket.on('connect_error', () => {
+            errorEl.textContent = 'Không thể kết nối. Kiểm tra mạng WiFi.';
+            btn.textContent = 'KẾT NỐI'; btn.disabled = false;
+        });
+
+        socket.on('distance_update', (data) => {
+            const distEl = document.getElementById('distance');
+            const errorEl = document.getElementById('error');
+            const statusEl = document.getElementById('status');
+            const ringEl = document.getElementById('distance-ring');
+
+            if (data.error) {
+                errorEl.textContent = '⚠️ ' + data.error;
+                distEl.textContent = '---';
+                if ('vibrate' in navigator) navigator.vibrate([50, 30, 50]);
+                return;
+            }
+
+            errorEl.textContent = '';
+            distEl.textContent = data.distance;
+            statusEl.textContent = 'Cập nhật lúc ' + new Date().toLocaleTimeString('vi-VN');
+
+            distEl.classList.remove('updated');
+            void distEl.offsetWidth;
+            distEl.classList.add('updated');
+
+            ringEl.classList.remove('pulse');
+            void ringEl.offsetWidth;
+            ringEl.classList.add('pulse');
+
+            if ('vibrate' in navigator) navigator.vibrate(100);
+            addToHistory(data.distance);
+        });
+
+        socket.on('disconnect', () => updateConnectionStatus(false));
+        socket.on('reconnect', () => updateConnectionStatus(true));
+    }
+
+    function updateConnectionStatus(connected) {
+        const dot = document.getElementById('status-dot');
+        const text = document.getElementById('connection-status');
+        dot.classList.toggle('disconnected', !connected);
+        text.textContent = connected ? 'Đã kết nối' : 'Mất kết nối...';
+    }
+
+    function addToHistory(distance) {
+        distanceHistory.unshift(distance);
+        if (distanceHistory.length > MAX_HISTORY) distanceHistory.pop();
+        const list = document.getElementById('history-list');
+        list.innerHTML = '';
+        distanceHistory.forEach((d, i) => {
+            const item = document.createElement('span');
+            item.className = 'history-item';
+            item.textContent = d + 'm';
+            item.style.animationDelay = (i * 0.05) + 's';
+            item.style.opacity = 1 - (i * 0.12);
+            list.appendChild(item);
+        });
+    }
+</script>
+</body>
+</html>

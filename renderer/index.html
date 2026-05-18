@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Distance Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Custom Titlebar -->
+<div class="titlebar" id="titlebar">
+    <div class="titlebar-left">
+        <span class="titlebar-icon">🎯</span>
+        <span class="titlebar-title">Game Distance Tracker</span>
+    </div>
+    <div class="titlebar-controls">
+        <button class="titlebar-btn minimize" onclick="window.electronAPI.minimizeWindow()">─</button>
+        <button class="titlebar-btn close" onclick="window.electronAPI.closeWindow()">✕</button>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="app-container">
+
+    <!-- Room Code Section -->
+    <section class="section room-section" id="room-section">
+        <div class="section-header">
+            <span class="section-icon">🔐</span>
+            <span class="section-title">MÃ KẾT NỐI</span>
+        </div>
+        <div class="room-code-display" id="room-code">------</div>
+        <div class="room-url" id="room-url">Đang khởi động server...</div>
+        <div class="qr-container">
+            <img id="qr-code" class="qr-image" alt="QR Code" style="display:none">
+            <div class="qr-placeholder" id="qr-placeholder">
+                <div class="spinner"></div>
+                <span>Đang tạo QR...</span>
+            </div>
+        </div>
+        <div class="connection-info">
+            <div class="info-badge" id="mobile-count">
+                <span class="badge-dot"></span>
+                <span id="mobile-count-text">0 điện thoại kết nối</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Distance Section -->
+    <section class="section distance-section">
+        <div class="section-header">
+            <span class="section-icon">📏</span>
+            <span class="section-title">KHOẢNG CÁCH</span>
+        </div>
+        <div class="distance-display">
+            <span class="distance-value" id="distance-value">---</span>
+            <span class="distance-unit">m</span>
+        </div>
+        <div class="distance-error" id="distance-error"></div>
+        <div class="distance-details" id="distance-details"></div>
+    </section>
+
+    <!-- Calibrate Section -->
+    <section class="section calibrate-section">
+        <div class="section-header">
+            <span class="section-icon">📐</span>
+            <span class="section-title">CALIBRATE</span>
+        </div>
+        <div class="calibrate-row">
+            <div class="scale-display">
+                Scale: <span id="current-scale">6.0000</span> m/px
+            </div>
+        </div>
+        <div class="calibrate-hint" id="calibrate-hint">
+            Nhấn <kbd>Alt+Q</kbd> và <kbd>Alt+W</kbd> ở hai đầu ô 100m để tự động đo tỷ lệ.
+        </div>
+    </section>
+
+    <!-- Hotkey Guide -->
+    <section class="section hotkeys-section">
+        <div class="hotkey-row">
+            <kbd>Alt+H</kbd>
+            <span>Ẩn/Hiện ứng dụng</span>
+        </div>
+        <div class="hotkey-row">
+            <kbd>Alt+Q</kbd> / <kbd>W</kbd>
+            <span>Set Scale (100m Grid)</span>
+        </div>
+        <div class="hotkey-row">
+            <kbd>Alt+A</kbd> / <kbd>S</kbd>
+            <span>Chọn Player / Mục tiêu</span>
+        </div>
+    </section>
+
+    <!-- Log Section -->
+    <section class="section log-section">
+        <div class="section-header">
+            <span class="section-icon">📋</span>
+            <span class="section-title">LOG</span>
+        </div>
+        <div class="log-container" id="log-container">
+            <div class="log-entry">Khởi động ứng dụng...</div>
+        </div>
+    </section>
+
+</div>
+
+<script>
+    // ═══ Window Controls ═══
+    // Handled via CSS -webkit-app-region for drag
+    // Close/minimize need main process IPC — simplified here
+
+    // ═══ Server Ready ═══
+    window.electronAPI.onServerReady((data) => {
+        document.getElementById('room-code').textContent = data.roomCode;
+        document.getElementById('room-url').textContent = data.connectionURL;
+
+        const qrImg = document.getElementById('qr-code');
+        const qrPlaceholder = document.getElementById('qr-placeholder');
+        qrImg.src = data.qrDataURL;
+        qrImg.style.display = 'block';
+        qrPlaceholder.style.display = 'none';
+    });
+
+    // ═══ Client Status ═══
+    window.electronAPI.onClientStatus((status) => {
+        const countText = document.getElementById('mobile-count-text');
+        const badge = document.getElementById('mobile-count');
+        countText.textContent = `${status.clients.mobile} điện thoại kết nối`;
+        badge.classList.toggle('active', status.clients.mobile > 0);
+    });
+
+    // ═══ Distance Result ═══
+    window.electronAPI.onDistanceResult((data) => {
+        const valueEl = document.getElementById('distance-value');
+        const errorEl = document.getElementById('distance-error');
+        const detailsEl = document.getElementById('distance-details');
+
+        if (data.error) {
+            valueEl.textContent = '---';
+            valueEl.classList.remove('has-value');
+            errorEl.textContent = '⚠️ ' + data.error;
+            detailsEl.textContent = '';
+        } else {
+            valueEl.textContent = data.distance;
+            valueEl.classList.add('has-value');
+            errorEl.textContent = '';
+            detailsEl.textContent = `Player: (${data.player.x}, ${data.player.y}) → Marker: (${data.marker.x}, ${data.marker.y})`;
+
+            // Flash animation
+            valueEl.classList.remove('flash');
+            void valueEl.offsetWidth;
+            valueEl.classList.add('flash');
+        }
+    });
+
+    // ═══ Calibration ═══
+    // Đã thay thế bằng Hotkey Alt+Q/W, không cần input manual nữa.
+
+    // ═══ Scale ═══
+    window.electronAPI.onScaleLoaded((scale) => {
+        document.getElementById('current-scale').textContent = scale.toFixed(4);
+    });
+
+    // ═══ Logs ═══
+    window.electronAPI.onLog((msg) => {
+        const container = document.getElementById('log-container');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.textContent = msg;
+        container.appendChild(entry);
+        container.scrollTop = container.scrollHeight;
+
+        // Keep only last 50 entries
+        while (container.children.length > 50) {
+            container.removeChild(container.firstChild);
+        }
+    });
+</script>
+</body>
+</html>
